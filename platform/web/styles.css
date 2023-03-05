@@ -1,0 +1,24 @@
+
+body {
+    margin: 0;
+    background: black;
+}
+
+.game-container {
+    aspect-ratio: 16 / 10; /* TODO: aspect ratio */
+    max-height: 100%;
+    margin: auto;
+    position: absolute;
+    inset: 0;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    -moz-user-select: -moz-none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.game-container>canvas {
+    position: absolute;
+}
