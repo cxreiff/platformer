@@ -1,0 +1,35 @@
+[package]
+name = "bevy_app"
+version = "0.1.0"
+publish = false
+authors = ["Cooper Reiff <cooper@cooperreiff.com>"]
+edition = "2021"
+exclude = ["dist", "platform", "assets"]
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[features]
+dev = [
+    "bevy/dynamic",
+]
+
+[dependencies]
+bevy = { version = "0.9", default-features = false, features = ["bevy_asset", "bevy_winit", "render", "png", "x11"] }
+bevy_kira_audio = "0.13"
+bevy_asset_loader = { version = "0.14.1", features = ["standard_dynamic_assets"] }
+rand = "0.8.3"
+bevy-inspector-egui = "0.14.0"
+bevy-debug-text-overlay = "4.0.1"
+winit = { version = "0.27.4", default-features = false }
+image = { version = "0.24", default-features = false }
+
+[build-dependencies]
+embed-resource = "1.4"
