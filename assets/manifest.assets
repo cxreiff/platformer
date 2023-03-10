@@ -2,4 +2,7 @@
     "textures.kitty": File (
         path: "textures/kitty.png",
     ),
+    "ldtk.level0": File (
+        path: "ldtk/level0.ldtk",
+    ),
 })
