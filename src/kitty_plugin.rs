@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::{get_world_position, CameraFlag, GameState, TextureAssets};
+use crate::{get_world_position, CameraFlag, GameState, AllAssets};
 
 #[derive(Component)]
 struct KittyFlag;
@@ -31,7 +31,7 @@ impl Plugin for KittyPlugin {
     }
 }
 
-fn kitty_setup(mut commands: Commands, textures: Res<TextureAssets>) {
+fn kitty_setup(mut commands: Commands, textures: Res<AllAssets>) {
     commands.insert_resource(KittySpawnerTracker {
         timer: Timer::new(Duration::from_secs(3), TimerMode::Repeating),
         count: 0,
@@ -41,7 +41,7 @@ fn kitty_setup(mut commands: Commands, textures: Res<TextureAssets>) {
         sprite: SpriteBundle {
             texture: textures.kitty.clone(),
             transform: Transform {
-                translation: Vec3::new(0., 0., 0.),
+                translation: Vec3::new(0., 0., 1.),
                 scale: Vec3::new(0.8, 0.8, 0.),
                 ..default()
             },

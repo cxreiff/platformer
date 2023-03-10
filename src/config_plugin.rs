@@ -1,4 +1,6 @@
 use std::io::Cursor;
+use bevy_ecs_ldtk::LdtkPlugin;
+use bevy_rapier2d::prelude::*;
 use winit::window::Icon;
 
 // use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
@@ -12,9 +14,9 @@ use bevy_debug_text_overlay::{screen_print, OverlayPlugin};
 
 use crate::GameState;
 
-pub const ASPECT_RATIO: f32 = 16. / 10.;
-pub const WIDTH: f32 = 90.;
-pub const HEIGHT: f32 = WIDTH / ASPECT_RATIO;
+pub const ASPECT_RATIO: f32 = 10. / 16.;
+pub const WIDTH: f32 = 800.;
+pub const HEIGHT: f32 = WIDTH * ASPECT_RATIO;
 
 pub struct ConfigPlugin;
 
@@ -32,24 +34,34 @@ impl Plugin for ConfigPlugin {
                             title: "bevy_trunk_template".to_string(),
                             canvas: Some("#bevy".to_owned()),
                             fit_canvas_to_parent: true,
-                            width: 500.,
-                            height: 800.,
+                            width: WIDTH,
+                            height: HEIGHT,
                             ..default()
                         },
                         ..default()
                     })
+                    .set(AssetPlugin {
+                        watch_for_changes: true,
+                        ..Default::default()
+                    })
                     .set(ImagePlugin::default_nearest()),
             )
+            .add_plugin(LdtkPlugin)
+            .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+            .insert_resource(RapierConfiguration {
+                gravity: Vec2 { x: 0., y: -2000.0 },
+                ..Default::default()
+            })
             .add_startup_system(camera_setup)
             .add_startup_system(window_icon_setup);
 
         #[cfg(debug_assertions)]
         {
-            app.add_plugin(OverlayPlugin::default())
+            app.add_plugin(OverlayPlugin::default());
                 // .add_plugin(FrameTimeDiagnosticsPlugin::default())
                 // .add_plugin(LogDiagnosticsPlugin::default())
                 // .add_plugin(WorldInspectorPlugin::new())
-                .add_system(debug_system);
+                // .add_system(debug_system);
         }
     }
 }
@@ -78,7 +90,7 @@ fn window_icon_setup(windows: NonSend<WinitWindows>) {
     };
 }
 
-fn debug_system(time: Res<Time>, windows: Res<Windows>, app_state: Res<State<GameState>>) {
+fn _debug_system(time: Res<Time>, windows: Res<Windows>, app_state: Res<State<GameState>>) {
     let current_time = time.elapsed_seconds();
     let at_interval = |t: f32| current_time % t < time.delta_seconds();
     if at_interval(1.) {
