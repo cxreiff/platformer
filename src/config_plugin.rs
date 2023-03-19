@@ -1,32 +1,45 @@
-use std::io::Cursor;
-use bevy_ecs_ldtk::LdtkPlugin;
+use bevy_ecs_ldtk::prelude::*;
 use bevy_rapier2d::prelude::*;
+use std::io::Cursor;
 use winit::window::Icon;
 
-// use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-// use bevy::diagnostic::LogDiagnosticsPlugin;
-use bevy::prelude::*;
-use bevy::render::camera::ScalingMode;
+use bevy::{prelude::*, window::PresentMode};
 use bevy::window::WindowId;
 use bevy::winit::WinitWindows;
-use bevy_debug_text_overlay::{screen_print, OverlayPlugin};
-// use bevy_inspector_egui::WorldInspectorPlugin;
+// use bevy_inspector_egui::quick::WorldInspectorPlugin;
+// use bevy::input::common_conditions::input_toggle_active;
+// use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+// use bevy::diagnostic::LogDiagnosticsPlugin;
+#[cfg(debug_assertions)]
+use {
+    bevy_debug_text_overlay::{screen_print, OverlayPlugin},
+    crate::GameState,
+};
 
-use crate::GameState;
-
+// world constants
 pub const ASPECT_RATIO: f32 = 10. / 16.;
-pub const WIDTH: f32 = 800.;
+pub const WIDTH: f32 = 320.;
 pub const HEIGHT: f32 = WIDTH * ASPECT_RATIO;
+pub const CAMERA_SPEED: f32 = 0.04;
+
+// physics constants
+pub const PIXELS_PER_METER: f32 = 1.;
+pub const GRAVITY: f32 = 2300.;
+pub const PLAYER_SPEED: f32 = 230.;
+
+// gameplay constants
+pub const MAX_STAMINA: u32 = 1;
+
+#[cfg(debug_assertions)]
+#[derive(Resource, Default)]
+pub struct DebugOptions {
+    printed_info_enabled: bool,
+}
 
 pub struct ConfigPlugin;
-
-#[derive(Component)]
-pub struct CameraFlag;
-
 impl Plugin for ConfigPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Msaa { samples: 1 })
-            .insert_resource(ClearColor(Color::rgb(0.4, 0.4, 0.4)))
             .add_plugins(
                 DefaultPlugins
                     .set(WindowPlugin {
@@ -34,6 +47,8 @@ impl Plugin for ConfigPlugin {
                             title: "bevy_trunk_template".to_string(),
                             canvas: Some("#bevy".to_owned()),
                             fit_canvas_to_parent: true,
+                            present_mode: PresentMode::AutoVsync,
+                            // mode: WindowMode::Fullscreen,
                             width: WIDTH,
                             height: HEIGHT,
                             ..default()
@@ -47,35 +62,28 @@ impl Plugin for ConfigPlugin {
                     .set(ImagePlugin::default_nearest()),
             )
             .add_plugin(LdtkPlugin)
-            .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+            .insert_resource(ClearColor(Color::rgb(0.1, 0.1, 0.2)))
+            .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
+                PIXELS_PER_METER,
+            ))
             .insert_resource(RapierConfiguration {
-                gravity: Vec2 { x: 0., y: -2000.0 },
+                gravity: Vec2 { x: 0., y: -GRAVITY },
                 ..Default::default()
             })
-            .add_startup_system(camera_setup)
             .add_startup_system(window_icon_setup);
 
         #[cfg(debug_assertions)]
         {
-            app.add_plugin(OverlayPlugin::default());
-                // .add_plugin(FrameTimeDiagnosticsPlugin::default())
-                // .add_plugin(LogDiagnosticsPlugin::default())
-                // .add_plugin(WorldInspectorPlugin::new())
-                // .add_system(debug_system);
+            app.insert_resource(DebugOptions::default())
+            .add_plugin(OverlayPlugin::default())
+            .add_plugin(RapierDebugRenderPlugin::default().disabled())
+            // .add_plugin(FrameTimeDiagnosticsPlugin::default())
+            // .add_plugin(LogDiagnosticsPlugin::default())
+            // .add_plugin(WorldInspectorPlugin::default().run_if(should_run))
+            .add_system(debug_toggle_system)
+            .add_system(debug_system);
         }
     }
-}
-
-fn camera_setup(mut commands: Commands) {
-    commands
-        .spawn(Camera2dBundle {
-            projection: OrthographicProjection {
-                scaling_mode: ScalingMode::FixedHorizontal(WIDTH),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .insert(CameraFlag);
 }
 
 fn window_icon_setup(windows: NonSend<WinitWindows>) {
@@ -90,15 +98,35 @@ fn window_icon_setup(windows: NonSend<WinitWindows>) {
     };
 }
 
-fn _debug_system(time: Res<Time>, windows: Res<Windows>, app_state: Res<State<GameState>>) {
+#[cfg(debug_assertions)]
+fn debug_system(
+    time: Res<Time>,
+    debug_options: Res<DebugOptions>,
+    windows: Res<Windows>,
+    app_state: Res<State<GameState>>,
+) {
     let current_time = time.elapsed_seconds();
     let at_interval = |t: f32| current_time % t < time.delta_seconds();
-    if at_interval(1.) {
+    if debug_options.printed_info_enabled && at_interval(0.25) {
         let window = windows.get_primary().unwrap();
-        screen_print!(col: Color::RED, "game state: {:?}", app_state.current());
+        screen_print!(sec: 0.3, col: Color::CYAN, "game state: {:?}", app_state.current());
         if let Some(position) = window.cursor_position() {
-            screen_print!(col: Color::CYAN, "cursor_position: {}", position);
+            screen_print!(sec: 0.3, col: Color::CYAN, "cursor_position: {}", position);
         };
+    }
+}
+
+#[cfg(debug_assertions)]
+fn debug_toggle_system(
+    input: Res<Input<KeyCode>>,
+    mut debug_options: ResMut<DebugOptions>,
+    mut rapier_debug: ResMut<DebugRenderContext>,
+) {
+    if input.just_pressed(KeyCode::Key1) {
+        debug_options.printed_info_enabled = !debug_options.printed_info_enabled;
+    }
+    if input.just_pressed(KeyCode::Key2) {
+        rapier_debug.enabled = !rapier_debug.enabled;
     }
 }
 
@@ -108,8 +136,8 @@ pub fn get_world_position(
     camera_transform: &GlobalTransform,
 ) -> Vec3 {
     let adjusted_position = Vec3::new(
-        raw_position.x / window.width() * WIDTH - WIDTH / 2.,
-        raw_position.y / window.height() * HEIGHT - HEIGHT / 2.,
+        raw_position.x / window.width() * WIDTH,
+        raw_position.y / window.height() * HEIGHT,
         0.,
     );
 
