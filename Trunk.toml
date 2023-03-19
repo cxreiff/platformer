@@ -2,3 +2,5 @@
 [serve]
 address = "0.0.0.0"
 
+[watch]
+watch = ["src", "assets"]

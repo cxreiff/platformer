@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::{get_world_position, CameraFlag, GameState, AllAssets};
+use crate::{get_world_position, CameraFlag, GameState, AllAssets, HEIGHT, WIDTH};
 
 #[derive(Component)]
 struct KittyFlag;
@@ -41,8 +41,8 @@ fn kitty_setup(mut commands: Commands, textures: Res<AllAssets>) {
         sprite: SpriteBundle {
             texture: textures.kitty.clone(),
             transform: Transform {
-                translation: Vec3::new(0., 0., 1.),
-                scale: Vec3::new(0.8, 0.8, 0.),
+                translation: Vec3::new(WIDTH / 2., HEIGHT / 2., 1.),
+                scale: Vec3::new(0.8, 0.8, 1.),
                 ..default()
             },
             ..default()
@@ -70,7 +70,7 @@ fn kitty_mover(
     let world_position = if let Some(position) = window.cursor_position() {
         get_world_position(position, window, camera_transform)
     } else {
-        Vec3::new(0., 0., 0.)
+        Vec3::new(WIDTH / 2., HEIGHT / 2., 0.)
     };
 
     for mut transform in q.iter_mut() {
