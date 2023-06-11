@@ -3,8 +3,8 @@
 
 use bevy::prelude::App;
 
-use bevy_app::ConfigPlugin;
-use bevy_app::GamePlugin;
+use platformer::ConfigPlugin;
+use platformer::GamePlugin;
 
 fn main() {
     App::new()
