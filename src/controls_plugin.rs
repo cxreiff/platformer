@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::input::gamepad::GamepadEvent;
 
 #[derive(Resource)]
 pub struct CurrentGamepad(pub Gamepad);
@@ -16,21 +17,17 @@ fn controls_system(
     mut gamepad_event_reader: EventReader<GamepadEvent>,
 ) {
     for event in gamepad_event_reader.iter() {
-        let gamepad_id = event.gamepad;
-        match &event.event_type {
-            GamepadEventType::Connected(_) => {
-                if current_gamepad.is_none() {
-                    commands.insert_resource(CurrentGamepad(gamepad_id));
-                }
-            },
-            GamepadEventType::Disconnected => {
+        if let GamepadEvent::Connection(info) = event {
+            if info.connected() && current_gamepad.is_none() {
+                commands.insert_resource(CurrentGamepad(info.gamepad))
+            }
+            if info.disconnected() {
                 if let Some(CurrentGamepad(current_gamepad_id)) = current_gamepad.as_deref() {
-                    if *current_gamepad_id == gamepad_id {
+                    if *current_gamepad_id == info.gamepad {
                         commands.remove_resource::<CurrentGamepad>();
                     }
                 }
-            },
-            _ => {},
+            }
         }
     }
 }

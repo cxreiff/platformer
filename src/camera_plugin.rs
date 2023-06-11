@@ -1,4 +1,5 @@
-use bevy::{prelude::*, render::camera::{ScalingMode, WindowOrigin}};
+use bevy::prelude::*;
+use bevy::render::camera::ScalingMode;
 
 use crate::{WIDTH, player_plugin::PlayerFlag, HEIGHT, config_plugin::CAMERA_SPEED};
 
@@ -18,7 +19,7 @@ fn camera_setup(mut commands: Commands) {
         .spawn(Camera2dBundle {
             projection: OrthographicProjection {
                 scaling_mode: ScalingMode::FixedHorizontal(WIDTH),
-                window_origin: WindowOrigin::BottomLeft,
+                viewport_origin: Vec2::new(0.0, 0.0),
                 ..Default::default()
             },
             ..Default::default()

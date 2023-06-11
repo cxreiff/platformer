@@ -1,6 +1,7 @@
 
 [serve]
 address = "0.0.0.0"
+no_autoreload = true
 
 [watch]
 watch = ["src", "assets"]
