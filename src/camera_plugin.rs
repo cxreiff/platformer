@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::render::camera::ScalingMode;
 
-use crate::{WIDTH, player_plugin::PlayerFlag, HEIGHT, config_plugin::CAMERA_SPEED};
+use crate::{config_plugin::CAMERA_SPEED, player_plugin::PlayerFlag, HEIGHT, WIDTH};
 
 #[derive(Component)]
 pub struct CameraFlag;

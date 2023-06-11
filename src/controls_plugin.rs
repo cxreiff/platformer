@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::input::gamepad::GamepadEvent;
+use bevy::prelude::*;
 
 #[derive(Resource)]
 pub struct CurrentGamepad(pub Gamepad);
