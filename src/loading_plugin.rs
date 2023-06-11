@@ -15,12 +15,14 @@ pub struct AllAssets {
 pub struct LoadingPlugin;
 impl Plugin for LoadingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_loading_state(
-            LoadingState::new(GameState::Load)
-                .continue_to_state(GameState::Play)
-                .with_dynamic_collections::<StandardDynamicAssetCollection>(vec!["manifest.assets"])
-                .with_collection::<AllAssets>(),
-        )
-        .add_state(GameState::Load);
+        app.add_state::<GameState>()
+            .add_loading_state(
+                LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
+            )
+            .add_dynamic_collection_to_loading_state::<_, StandardDynamicAssetCollection>(
+                GameState::Loading,
+                "manifest.assets.ron",
+            )
+            .add_collection_to_loading_state::<_, AllAssets>(GameState::Loading);
     }
 }

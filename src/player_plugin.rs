@@ -20,14 +20,14 @@ pub struct ColliderBundle {
     pub density: ColliderMassProperties,
 }
 
-impl From<EntityInstance> for ColliderBundle {
-    fn from(entity_instance: EntityInstance) -> ColliderBundle {
+impl From<&EntityInstance> for ColliderBundle {
+    fn from(entity_instance: &EntityInstance) -> ColliderBundle {
         match entity_instance.identifier.as_ref() {
             "Player" => ColliderBundle {
-                collider: Collider::cuboid(4.0, 4.0),
+                collider: Collider::cuboid(7.9, 8.0),
                 rigid_body: RigidBody::Dynamic,
                 friction: Friction {
-                    coefficient: 0.0,
+                    coefficient: 0.8,
                     combine_rule: CoefficientCombineRule::Min,
                 },
                 rotation_constraints: LockedAxes::ROTATION_LOCKED,
@@ -43,8 +43,8 @@ pub struct ControllerBundle {
     controller: KinematicCharacterController,
 }
 
-impl From<EntityInstance> for ControllerBundle {
-    fn from(entity_instance: EntityInstance) -> ControllerBundle {
+impl From<&EntityInstance> for ControllerBundle {
+    fn from(entity_instance: &EntityInstance) -> ControllerBundle {
         match entity_instance.identifier.as_ref() {
             "Player" => ControllerBundle::default(),
             _ => ControllerBundle::default(),
@@ -94,11 +94,9 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.register_ldtk_entity::<PlayerBundle>("Player")
-            .add_system_set(
-                SystemSet::on_update(GameState::Play)
-                    .with_system(player_movement)
-                    .with_system(update_safe_spot)
-                    .with_system(check_out_of_level),
+            .add_systems(
+                (player_movement, update_safe_spot, check_out_of_level)
+                    .in_set(OnUpdate(GameState::Playing)),
             );
     }
 }
@@ -111,7 +109,6 @@ fn player_movement(
     mut query: Query<
         (
             &mut Velocity,
-            &mut Friction,
             &ContactDetection,
             &mut Stamina,
         ),
@@ -121,7 +118,8 @@ fn player_movement(
     let mut jump_pressed = input.just_pressed(KeyCode::Up) || input.just_pressed(KeyCode::Space);
     let mut left_pressed = input.pressed(KeyCode::Left);
     let mut right_pressed = input.pressed(KeyCode::Right);
-    let mut down_pressed = input.just_pressed(KeyCode::Down);
+    let mut down_pressed = input.pressed(KeyCode::Down);
+    let mut down_just_pressed = input.just_pressed(KeyCode::Down);
     let mut left_stick_x = 0.;
     if let Some(gp) = gamepad {
         let gamepad = gp.0;
@@ -137,11 +135,18 @@ fn player_movement(
             gamepad,
             button_type: GamepadButtonType::DPadRight,
         });
-        down_pressed ^= buttons.just_pressed(GamepadButton {
+        down_pressed ^= buttons.pressed(GamepadButton {
             gamepad,
             button_type: GamepadButtonType::DPadDown,
         });
-        if let Some(x) = axes.get(GamepadAxis { gamepad, axis_type: GamepadAxisType::LeftStickX }) {
+        down_just_pressed ^= buttons.just_pressed(GamepadButton {
+            gamepad,
+            button_type: GamepadButtonType::DPadDown,
+        });
+        if let Some(x) = axes.get(GamepadAxis {
+            gamepad,
+            axis_type: GamepadAxisType::LeftStickX,
+        }) {
             if x < -0.3 {
                 left_stick_x = x;
                 left_pressed = true;
@@ -154,8 +159,9 @@ fn player_movement(
         }
     };
 
-    if let Ok((mut velocity, mut friction, contact_detection, mut stamina)) = query.get_single_mut() {
-        let l = if left_pressed && !contact_detection.on_left {
+    if let Ok((mut velocity, contact_detection, mut stamina)) = query.get_single_mut()
+    {
+        let l = if left_pressed {
             if left_stick_x != 0. {
                 (-left_stick_x * 1.3).min(1.)
             } else {
@@ -164,7 +170,7 @@ fn player_movement(
         } else {
             0.
         };
-        let r = if right_pressed && !contact_detection.on_right {
+        let r = if right_pressed {
             if left_stick_x != 0. {
                 (left_stick_x * 1.3).min(1.)
             } else {
@@ -175,8 +181,12 @@ fn player_movement(
         };
 
         if r > 0. || l > 0. {
-            velocity.linvel.x = (r - l) * PLAYER_SPEED;
-        } else {
+            if contact_detection.on_ground && down_pressed {
+                velocity.linvel.x = (r - l).clamp(-0.5, 0.5) * PLAYER_SPEED;
+            } else {
+                velocity.linvel.x = (r - l).clamp(-1., 1.) * PLAYER_SPEED;
+            }
+        } else if !contact_detection.on_ground {
             velocity.linvel.x *= 0.97;
         }
 
@@ -188,33 +198,30 @@ fn player_movement(
 
         if jump_pressed {
             if contact_detection.on_ground {
-                velocity.linvel.y = 550.;
+                velocity.linvel.y = 500.;
             } else if contact_detection.on_left {
-                velocity.linvel.y = 450.;
+                velocity.linvel.y = 400.;
                 if !input.pressed(KeyCode::Left) {
                     velocity.linvel.x = 300.;
                 }
             } else if contact_detection.on_right {
-                velocity.linvel.y = 450.;
+                velocity.linvel.y = 400.;
                 if !input.pressed(KeyCode::Right) {
                     velocity.linvel.x = -300.;
                 }
             } else if **stamina > 0 {
-                velocity.linvel.y = 450.;
+                velocity.linvel.y = 400.;
                 **stamina -= 1;
             }
         }
 
-        if down_pressed && !contact_detection.on_ground {
+        if down_just_pressed && !contact_detection.on_ground {
             velocity.linvel.x = 0.;
             velocity.linvel.y = -800.;
         }
 
         if contact_detection.on_ground {
-            friction.coefficient = 0.8;
             **stamina = MAX_STAMINA;
-        } else {
-            friction.coefficient = 0.0;
         }
     }
 }

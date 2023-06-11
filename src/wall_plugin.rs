@@ -4,6 +4,8 @@ use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 use bevy_rapier2d::prelude::*;
 
+use crate::GameState;
+
 pub struct WallPlugin;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default, Component)]
@@ -16,11 +18,15 @@ pub struct WallBundle {
 
 impl Plugin for WallPlugin {
     fn build(&self, app: &mut App) {
-        app.register_ldtk_int_cell::<WallBundle>(1)
-            .add_system(spawn_wall_collision)
-            .add_system(spawn_sensors)
-            .add_system(contact_detection)
-            .add_system(update_contact_detectors);
+        app.register_ldtk_int_cell::<WallBundle>(1).add_systems(
+            (
+                spawn_wall_collision,
+                spawn_sensors,
+                contact_detection,
+                update_contact_detectors,
+            )
+                .in_set(OnUpdate(GameState::Playing)),
+        );
     }
 }
 
@@ -45,6 +51,9 @@ pub struct ContactSensorStableLeft;
 #[derive(Component)]
 pub struct ContactSensorStableRight;
 
+#[derive(Component)]
+pub struct FrictionCollider;
+
 #[derive(Component, Clone, Default)]
 pub struct ContactDetection {
     pub on_left: bool,
@@ -55,24 +64,6 @@ pub struct ContactDetection {
     pub is_stable: bool,
 }
 
-// COPIED FROM bevy_ecs_ldtk EXAMPLE
-
-/// Spawns heron collisions for the walls of a level
-///
-/// You could just insert a ColliderBundle in to the WallBundle,
-/// but this spawns a different collider for EVERY wall tile.
-/// This approach leads to bad performance.
-///
-/// Instead, by flagging the wall tiles and spawning the collisions later,
-/// we can minimize the amount of colliding entities.
-///
-/// The algorithm used here is a nice compromise between simplicity, speed,
-/// and a small number of rectangle colliders.
-/// In basic terms, it will:
-/// 1. consider where the walls are
-/// 2. combine wall tiles into flat "plates" in each individual row
-/// 3. combine the plates into rectangles across multiple rows wherever possible
-/// 4. spawn colliders for each rectangle
 pub fn spawn_wall_collision(
     mut commands: Commands,
     wall_query: Query<(&GridCoords, &Parent), Added<Wall>>,
@@ -80,15 +71,12 @@ pub fn spawn_wall_collision(
     level_query: Query<(Entity, &Handle<LdtkLevel>)>,
     levels: Res<Assets<LdtkLevel>>,
 ) {
-    /// Represents a wide wall that is 1 tile tall
-    /// Used to spawn wall collisions
     #[derive(Clone, Eq, PartialEq, Debug, Default, Hash)]
     struct Plate {
         left: i32,
         right: i32,
     }
 
-    /// A simple rectangle type representing a wall of any size
     struct Rect {
         left: i32,
         right: i32,
@@ -96,19 +84,9 @@ pub fn spawn_wall_collision(
         bottom: i32,
     }
 
-    // Consider where the walls are
-    // storing them as GridCoords in a HashSet for quick, easy lookup
-    //
-    // The key of this map will be the entity of the level the wall belongs to.
-    // This has two consequences in the resulting collision entities:
-    // 1. it forces the walls to be split along level boundaries
-    // 2. it lets us easily add the collision entities as children of the appropriate level entity
     let mut level_to_wall_locations: HashMap<Entity, HashSet<GridCoords>> = HashMap::new();
 
     wall_query.for_each(|(&grid_coords, parent)| {
-        // An intgrid tile's direct parent will be a layer entity, not the level entity
-        // To get the level entity, you need the tile's grandparent.
-        // This is where parent_query comes in.
         if let Ok(grandparent) = parent_query.get(parent.get()) {
             level_to_wall_locations
                 .entry(grandparent.get())
@@ -122,7 +100,7 @@ pub fn spawn_wall_collision(
             if let Some(level_walls) = level_to_wall_locations.get(&level_entity) {
                 let level = levels
                     .get(level_handle)
-                    .expect("Level should be loaded by this point");
+                    .expect("level should be loaded");
 
                 let LayerInstance {
                     c_wid: width,
@@ -133,16 +111,14 @@ pub fn spawn_wall_collision(
                     .level
                     .layer_instances
                     .clone()
-                    .expect("Level asset should have layers")[0];
+                    .expect("level asset should have layers")[0];
 
-                // combine wall tiles into flat "plates" in each individual row
                 let mut plate_stack: Vec<Vec<Plate>> = Vec::new();
 
                 for y in 0..height {
                     let mut row_plates: Vec<Plate> = Vec::new();
                     let mut plate_start = None;
 
-                    // + 1 to the width so the algorithm "terminates" plates that touch the right edge
                     for x in 0..width + 1 {
                         match (plate_start, level_walls.contains(&GridCoords { x, y })) {
                             (Some(s), false) => {
@@ -160,18 +136,15 @@ pub fn spawn_wall_collision(
                     plate_stack.push(row_plates);
                 }
 
-                // combine "plates" into rectangles across multiple rows
                 let mut rect_builder: HashMap<Plate, Rect> = HashMap::new();
                 let mut prev_row: Vec<Plate> = Vec::new();
                 let mut wall_rects: Vec<Rect> = Vec::new();
 
-                // an extra empty row so the algorithm "finishes" the rects that touch the top edge
                 plate_stack.push(Vec::new());
 
                 for (y, current_row) in plate_stack.into_iter().enumerate() {
                     for prev_plate in &prev_row {
                         if !current_row.contains(prev_plate) {
-                            // remove the finished rect so that the same plate in the future starts a new rect
                             if let Some(rect) = rect_builder.remove(prev_plate) {
                                 wall_rects.push(rect);
                             }
@@ -192,10 +165,6 @@ pub fn spawn_wall_collision(
                 }
 
                 commands.entity(level_entity).with_children(|level| {
-                    // Spawn colliders for every rectangle..
-                    // Making the collider a child of the level serves two purposes:
-                    // 1. Adjusts the transforms to be relative to the level for free
-                    // 2. the colliders will be despawned automatically when levels unload
                     for wall_rect in wall_rects {
                         level
                             .spawn_empty()
@@ -235,24 +204,41 @@ pub fn spawn_sensors(
                 y: half_extents_y,
             } = cuboid.half_extents();
 
-            let sensor_collider_left = Collider::cuboid(half_extents_x / 2., 3.9);
-            let sensor_translation_left = Vec3::new(-half_extents_x, 0., 0.);
+            let sensor_collider_left = Collider::cuboid(half_extents_x * 0.5, half_extents_y);
+            let sensor_translation_left = Vec3::new(-half_extents_x * 1.1, 0., 0.);
 
-            let sensor_collider_right = Collider::cuboid(half_extents_x / 2., 3.9);
-            let sensor_translation_right = Vec3::new(half_extents_x, 0., 0.);
+            let sensor_collider_right = Collider::cuboid(half_extents_x * 0.5, half_extents_y);
+            let sensor_translation_right = Vec3::new(half_extents_x * 1.1, 0., 0.);
 
-            let sensor_collider_ground = Collider::cuboid(half_extents_x - 1., 2.);
+            let sensor_collider_ground =
+                Collider::cuboid(half_extents_x * 0.9, half_extents_y / 2.);
             let sensor_translation_ground = Vec3::new(0., -half_extents_y, 0.);
 
-            let sensor_collider_stable_left = Collider::cuboid(half_extents_x / 8., 2.);
-            let sensor_translatiom_stable_left =
+            let sensor_collider_stable_left =
+                Collider::cuboid(half_extents_x * 0.125, half_extents_y * 0.5);
+            let sensor_translation_stable_left =
                 Vec3::new(-half_extents_x + 1., -half_extents_y, 0.);
 
-            let sensor_collider_stable_right = Collider::cuboid(half_extents_x / 8., 2.);
-            let sensor_translatiom_stable_right =
+            let sensor_collider_stable_right =
+                Collider::cuboid(half_extents_x * 0.125, half_extents_y * 0.5);
+            let sensor_translation_stable_right =
                 Vec3::new(half_extents_x - 1., -half_extents_y, 0.);
 
             commands.entity(entity).with_children(|builder| {
+                builder
+                    .spawn_empty()
+                    .insert(ActiveEvents::COLLISION_EVENTS)
+                    .insert(Collider::cuboid(
+                        half_extents_x * 1.02,
+                        half_extents_y * 0.99,
+                    ))
+                    .insert(Transform::from_translation(Vec3::new(0., 0., 0.)))
+                    .insert(GlobalTransform::default())
+                    .insert(Friction {
+                        coefficient: 0.0,
+                        combine_rule: CoefficientCombineRule::Min,
+                    })
+                    .insert(FrictionCollider);
                 builder
                     .spawn_empty()
                     .insert(ActiveEvents::COLLISION_EVENTS)
@@ -294,7 +280,7 @@ pub fn spawn_sensors(
                     .insert(ActiveEvents::COLLISION_EVENTS)
                     .insert(sensor_collider_stable_left)
                     .insert(Sensor)
-                    .insert(Transform::from_translation(sensor_translatiom_stable_left))
+                    .insert(Transform::from_translation(sensor_translation_stable_left))
                     .insert(GlobalTransform::default())
                     .insert(ContactSensorStableLeft)
                     .insert(ContactSensor {
@@ -306,7 +292,7 @@ pub fn spawn_sensors(
                     .insert(ActiveEvents::COLLISION_EVENTS)
                     .insert(sensor_collider_stable_right)
                     .insert(Sensor)
-                    .insert(Transform::from_translation(sensor_translatiom_stable_right))
+                    .insert(Transform::from_translation(sensor_translation_stable_right))
                     .insert(GlobalTransform::default())
                     .insert(ContactSensorStableRight)
                     .insert(ContactSensor {

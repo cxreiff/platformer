@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 
-use bevy::prelude::{App, Plugin};
+use bevy::prelude::*;
 
 mod config_plugin;
 mod camera_plugin;
@@ -20,20 +20,22 @@ use level_plugin::LevelPlugin;
 use player_plugin::PlayerPlugin;
 use wall_plugin::WallPlugin;
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 enum GameState {
-    Load,
-    Play,
+    #[default]
+    Loading,
+    Playing,
 }
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(CameraPlugin)
+        app
+            .add_plugin(LoadingPlugin)
+            .add_plugin(CameraPlugin)
             .add_plugin(ControlsPlugin)
             .add_plugin(LevelPlugin)
-            .add_plugin(LoadingPlugin)
             .add_plugin(WallPlugin)
             .add_plugin(PlayerPlugin);
     }

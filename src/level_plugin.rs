@@ -16,7 +16,7 @@ impl Plugin for LevelPlugin {
                 },
                 ..Default::default()
             })
-            .add_system_set(SystemSet::on_enter(GameState::Play).with_system(level_setup));
+            .add_system(level_setup.in_schedule(OnEnter(GameState::Playing)));
     }
 }
 
