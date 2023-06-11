@@ -98,9 +98,7 @@ pub fn spawn_wall_collision(
     if !wall_query.is_empty() {
         level_query.for_each(|(level_entity, level_handle)| {
             if let Some(level_walls) = level_to_wall_locations.get(&level_entity) {
-                let level = levels
-                    .get(level_handle)
-                    .expect("level should be loaded");
+                let level = levels.get(level_handle).expect("level should be loaded");
 
                 let LayerInstance {
                     c_wid: width,

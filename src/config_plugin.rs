@@ -5,12 +5,12 @@ use bevy_rapier2d::prelude::*;
 
 #[cfg(debug_assertions)]
 use {
-    bevy_inspector_egui::quick::WorldInspectorPlugin,
-    bevy::diagnostic::{FrameTimeDiagnosticsPlugin, Diagnostics},
+    crate::GameState,
+    bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     bevy::input::common_conditions::input_toggle_active,
     bevy::window::PrimaryWindow,
     bevy_debug_text_overlay::{screen_print, OverlayPlugin},
-    crate::GameState,
+    bevy_inspector_egui::quick::WorldInspectorPlugin,
 };
 
 // world constants
@@ -69,12 +69,15 @@ impl Plugin for ConfigPlugin {
         #[cfg(debug_assertions)]
         {
             app.insert_resource(DebugOptions::default())
-            .add_plugin(OverlayPlugin::default())
-            .add_plugin(RapierDebugRenderPlugin::default().disabled())
-            .add_plugin(FrameTimeDiagnosticsPlugin::default())
-            .add_plugin(WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::Key3)))
-            .add_system(debug_toggle_system)
-            .add_system(debug_system);
+                .add_plugin(OverlayPlugin::default())
+                .add_plugin(RapierDebugRenderPlugin::default().disabled())
+                .add_plugin(FrameTimeDiagnosticsPlugin::default())
+                .add_plugin(
+                    WorldInspectorPlugin::default()
+                        .run_if(input_toggle_active(false, KeyCode::Key3)),
+                )
+                .add_system(debug_toggle_system)
+                .add_system(debug_system);
         }
     }
 }
@@ -87,7 +90,6 @@ fn debug_system(
     app_state: Res<State<GameState>>,
     diagnostics: Res<Diagnostics>,
 ) {
-
     let current_time = time.elapsed_seconds();
     let at_interval = |t: f32| current_time % t < time.delta_seconds();
     if debug_options.printed_info_enabled && at_interval(0.25) {

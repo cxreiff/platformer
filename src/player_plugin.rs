@@ -106,14 +106,7 @@ fn player_movement(
     buttons: Res<Input<GamepadButton>>,
     axes: Res<Axis<GamepadAxis>>,
     gamepad: Option<Res<CurrentGamepad>>,
-    mut query: Query<
-        (
-            &mut Velocity,
-            &ContactDetection,
-            &mut Stamina,
-        ),
-        With<PlayerFlag>,
-    >,
+    mut query: Query<(&mut Velocity, &ContactDetection, &mut Stamina), With<PlayerFlag>>,
 ) {
     let mut jump_pressed = input.just_pressed(KeyCode::Up) || input.just_pressed(KeyCode::Space);
     let mut left_pressed = input.pressed(KeyCode::Left);
@@ -159,8 +152,7 @@ fn player_movement(
         }
     };
 
-    if let Ok((mut velocity, contact_detection, mut stamina)) = query.get_single_mut()
-    {
+    if let Ok((mut velocity, contact_detection, mut stamina)) = query.get_single_mut() {
         let l = if left_pressed {
             if left_stick_x != 0. {
                 (-left_stick_x * 1.3).min(1.)
